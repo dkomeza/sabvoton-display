@@ -1,5 +1,4 @@
-#ifndef OSKD_OTA_H
-#define OSKD_OTA_H
+#pragma once
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
@@ -9,18 +8,38 @@
 
 #include "./credentials.h" // ssid and password
 
-IPAddress setupOTA()
+namespace OTA
 {
-    ArduinoOTA.setHostname("OSKD");
+    long unsigned int lastUpdate = 0;
+    int updateInterval = 1000; // 1 second
 
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
+    IPAddress setupOTA()
+    {
+        ArduinoOTA.setHostname("OSKD");
 
-    WiFi.waitForConnectResult(2000);
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(ssid, password);
 
-    ArduinoOTA.begin();
+        WiFi.waitForConnectResult(2000);
 
-    return WiFi.localIP();
+        ArduinoOTA.begin();
+
+        return WiFi.localIP();
+    }
+
+    void update()
+    {
+        // Prevent rollover
+        if (millis() - lastUpdate < 0)
+            lastUpdate = millis();
+
+        if (millis() - lastUpdate < updateInterval)
+            return;
+
+        if (WiFi.status() != WL_CONNECTED)
+            return;
+
+        ArduinoOTA.handle();
+        lastUpdate = millis();
+    }
 }
-
-#endif // OSKD_OTA_H

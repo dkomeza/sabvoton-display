@@ -1,40 +1,51 @@
-#ifndef OSKD_CONTROLLER_H
-#define OSKD_CONTROLLER_H
+#pragma once
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
+#include <vector>
 
-#include "../data/data.h"
-#include "../screen/screen.h"
+#include "communication.h"
+#include "data/data.h"
+#include "screen/screen.h"
+
+namespace Controller_Private
+{
+    class Packet
+    {
+    public:
+        Packet(HardwareSerial &serial);
+
+    private:
+        std::vector<byte> packet;
+
+        void modeMain();
+        void modeTorque();
+        void modeSettings();
+        void modeData();
+    };
+}
 
 class Controller
 {
 public:
-    void setup();
+    void init();
+    void handle();
 
-    void update();
+    void changeMode(MODE mode);
+
+    void increaseGear();
+    void decreaseGear();
+
+    void setBrake(bool brake);
 
 private:
-    HardwareSerial controllerSerial = HardwareSerial(2);
-
-    const int controllerBaudRate = 9600;
     const int controllerRXPin = 16;
     const int controllerTXPin = 17;
 
-    const int BUFFER_UP_SIZE = 13;
-    const int BUFFER_SIZE = 12;
+    HardwareSerial controllerSerial = HardwareSerial(2);
 
-    const double RPM_CONSTANT = 0.1885;
-
-    void sendData();
-    void receiveData();
-
-    void parseData(byte buffer[]);
-    bool isDataValid(byte buffer[], int counter);
-
-    int calculateChecksum(byte buffer[]);
+    long unsigned int lastUpdate = 0;
+    int receiveInterval = 500;
 };
 
 extern Controller controller;
-
-#endif // OSKD_CONTROLLER_H

@@ -1,144 +1,91 @@
-#include "./io.h"
-#include <esp_sleep.h>
+#include "io.h"
 
-void handleDownClick();
-void handleUpClick();
-void handlePowerDoubleClick();
-void handlePowerClick();
-void handlePowerLongPress();
+using namespace IO_Private;
 
 void IO::setup()
 {
-    pinMode(this->BATTERY_VOLTAGE_PIN, INPUT);
-    this->voltageOffset = this->getVoltageOffset();
+    buttonDown.onClick(buttonDownOnClick);
+    buttonPower.onClick(buttonPowerOnClick);
+    buttonPower.onDoubleClick(buttonPowerOnDoubleClick);
+    buttonUp.onClick(buttonUpOnClick);
 
-    this->buttonDown.onClick(handleDownClick);
-    this->buttonDown.onLongPressStart([]()
-                                      { settings.startWalkMode(); });
-    this->buttonDown.onLongPressStop([]()
-                                     { settings.stopWalkMode(); });
-
-    this->buttonUp.onClick(handleUpClick);
-    this->buttonUp.onLongPressStart([]()
-                                    { settings.toggleLegalMode(); });
-
-    this->buttonPower.onDoubleClick(handlePowerDoubleClick);
-    this->buttonPower.onClick(handlePowerClick);
-    this->buttonPower.onLongPressStart(handlePowerLongPress);
+    lastUpdate = millis();
 }
 
 void IO::update()
 {
-    data.batteryVoltage = this->getBatteryVoltage();
+    // Prevent rollower
+    if (millis() < lastUpdate)
+        lastUpdate = millis();
 
-    this->buttonDown.update();
-    this->buttonPower.update();
-    this->buttonUp.update();
+    // Control update interval
+    if (millis() - lastUpdate < updateInterval)
+        return;
+
+    buttonDown.update();
+    buttonPower.update();
+    buttonUp.update();
+
+    lastUpdate = millis();
 }
 
-int IO::getVoltageOffset()
+void IO_Private::buttonUpOnClick()
 {
-    int reference = map(1815, 0, 3300, 0, 4095);
-
-    int sum = 0;
-
-    for (int i = 0; i < 10; i++)
+    switch (data.mode)
     {
-        sum += analogRead(this->BATTERY_VOLTAGE_OFFSET_PIN);
-    }
-
-    int average = sum / 10;
-
-    average = reference - average;
-
-    return average;
-}
-
-double IO::getBatteryVoltage()
-{
-    int sum = 0;
-
-    for (int i = 0; i < 10; i++)
-    {
-        sum += analogRead(this->BATTERY_VOLTAGE_PIN);
-    }
-
-    int average = sum / 10;
-    average += this->voltageOffset;
-
-    double voltage = map(average, 0, 4095, 0, 3300);
-
-    double batteryVoltage = voltage * (1000 + 56) / 56;
-
-    return batteryVoltage / 1000;
-}
-
-void handleDownClick()
-{
-    switch (data.view)
-    {
-    case MAIN:
-        if (data.gear > 0)
-        {
-            settings.setGear(data.gear - 1);
-        }
+    case MODE::MENU:
+        Screen::menu.hoverPreviousOption();
         break;
-    case SETTINGS:
-        settings.decreaseOption();
+    case MODE::MAIN:
+        controller.increaseGear();
+        break;
+    case MODE::SETTINGS:
+        Screen::settings.hoverPreviousOption();
         break;
     }
 }
 
-void handleUpClick()
+void IO_Private::buttonPowerOnClick()
 {
-    switch (data.view)
+    switch (data.mode)
     {
-    case MAIN:
-        if (data.gear < 5)
-        {
-            settings.setGear(data.gear + 1);
-        }
+    case MODE::MENU:
+        Screen::menu.selectOption();
         break;
-    case SETTINGS:
-        settings.increaseOption();
+    case MODE::SETTINGS:
+        Screen::settings.selectOption();
         break;
-    }
-}
 
-void handlePowerDoubleClick()
-{
-    data.view = data.view == MAIN ? SETTINGS : MAIN;
-
-    switch (data.view)
-    {
-    case MAIN:
-        settings.saveSettings();
+    default:
         break;
     }
 }
 
-void handlePowerClick()
+void IO_Private::buttonPowerOnDoubleClick()
 {
-    switch (data.view)
+    if (data.mode != MODE::MENU)
     {
-    case SETTINGS:
-        settings.selectOption();
-        break;
+        data.mode = MODE::MENU;
+        Screen::changeView();
+        controller.changeMode(MODE::MENU);
     }
 }
 
-void handlePowerLongPress()
+void IO_Private::buttonDownOnClick()
 {
-    switch (data.view)
+    switch (data.mode)
     {
-    case MAIN:
-        digitalWrite(26, LOW);
-        digitalWrite(19, LOW);
-        delay(100);
+    case MODE::MENU:
+        Screen::menu.hoverNextOption();
+        break;
+    case MODE::MAIN:
+        controller.decreaseGear();
+        break;
+    case MODE::SETTINGS:
+        Screen::settings.hoverNextOption();
+        break;
 
-        gpio_hold_en(GPIO_NUM_26);
-        gpio_hold_en(GPIO_NUM_19);
-
-        esp_deep_sleep_start();
+    default:
+        break;
     }
 }
